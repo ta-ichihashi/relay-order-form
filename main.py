@@ -26,6 +26,9 @@ class TeamGroup:
         team_order_df = self.new_order_df.query(
             f'氏名 == "{order1}" | 氏名 == "{order2}" | 氏名 == "{order3}" | チーム == "{team}"'
             )
+        duplicated_df = team_order_df[team_order_df.duplicated(subset="競技者番号", keep=False)]
+        duplicated_df = duplicated_df.loc[duplicated_df["チームコード"] != team_code]
+        team_order_df = team_order_df.drop(duplicated_df.index)
         team_order_df["走順"] = None
         team_order_df["チーム"] = team
         team_order_df["チームコード"] = team_code
