@@ -3,6 +3,7 @@ import pandas as pd
 import re
 from streamlit_gsheets import GSheetsConnection
 from dataclasses import dataclass, field
+from collections import Counter
 
 
 
@@ -173,18 +174,23 @@ def main():
             return re.match(email_regex, author_email) is not None
 
         # データチェック
-        new_group_members = team_group.get_new_team_members()
-        error_team = list()
-        for team in new_group_members:
-            if sum([order['走順'] for order in new_group_members[team] if isinstance(order['走順'], int) and order['走順'] >= 1 and order['走順'] <= 3]) != 6 :
-                error_team.append(f"{team} チームにメンバーの重複があります。")
+        new_group_df = team_group.new_order_df.loc[team_group.new_order_df["走順"] <= 3]
+        sum_of_orders = new_group_df.groupby("チーム")["走順"].sum().to_dict()
+        new_group_members = new_group_df["氏名"].values.tolist()
         if name in ("", "nan") or mail in ("", "nan"):
             st.error("申請者の氏名とメールアドレスを入力してください。")
         elif not check_email_format(mail):
             st.error("申請者のメールアドレスの書式が不正です。")
-        elif len(error_team) > 0:
-            for error in error_team:
-                st.error(error)
+        elif len(new_group_members) != len(set(new_group_members)):
+            # 全チームの1～3走で重複した名前がないかチェック
+            duplicated_items = sorted([k for k, v in Counter(new_group_members).items() if v > 1], key=new_group_members.index)
+            for duplicated in duplicated_items:
+                st.error(f"{duplicated} が重複しています。")
+        elif sum([sum_of_orders[k] for k in sum_of_orders]) % 6 != 0:
+            # 全チーム1,2,3走が完成されているかどうかのチェック
+            for team in sum_of_orders:
+                if sum_of_orders[team] != 6:
+                    st.error(f"{team} に重複した登録者があります。")
         else:
             team_group.make_new_order_df(name, mail)
             total_df = team_group.new_order_df[["チーム", "ナンバー","競技者番号", "氏名", "走順","申請者氏名","申請者email"]].set_index("ナンバー")
